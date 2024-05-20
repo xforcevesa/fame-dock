@@ -159,3 +159,9 @@ class PageNotExistError : public RMDBError {
     PageNotExistError(const std::string &table_name, int page_no)
         : RMDBError("Page " + std::to_string(page_no) + " in table " + table_name + "not exits") {}
 };
+
+class InvalidSlotNoError : public RMDBError {
+    public:
+        InvalidSlotNoError(int slot_no, int record_num) : RMDBError("Invalid slot no: " + std::to_string(slot_no) 
+            + ", Num record per page: " + std::to_string(record_num)) {}
+};
