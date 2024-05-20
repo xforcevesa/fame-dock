@@ -14,6 +14,8 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>    // for memset
 #include <sys/stat.h>  // for stat
 #include <unistd.h>    // for lseek
+#include <iostream>    // for cout
+#include <fstream>     // for ofstream
 
 #include "defs.h"
 
@@ -118,6 +120,7 @@ void DiskManager::create_file(const std::string &path) {
     // Todo:
     // 调用open()函数，使用O_CREAT模式
     // 注意不能重复创建相同文件
+
     if(is_file(path)) {
         throw FileExistsError(path);
     }
@@ -143,15 +146,16 @@ void DiskManager::destroy_file(const std::string &path) {
     // Todo:
     // 调用unlink()函数
     // 注意不能删除未关闭的文件
+
     //判断文件是否存在
     if(!is_file(path)) {
         throw FileNotFoundError(path);
     }
 
-    // if (path2fd_.count(path) > 0){
-    //     // 关闭文件
-    //     close_file(path2fd_[path]);
-    // }
+    if (path2fd_.count(path) > 0){
+        // 关闭文件
+        close_file(path2fd_[path]);
+    }
 
     if(path2fd_.count(path)) {
         throw FileNotClosedError(path);
@@ -174,6 +178,7 @@ int DiskManager::open_file(const std::string &path) {
     // Todo:
     // 调用open()函数，使用O_RDWR模式
     // 注意不能重复打开相同文件，并且需要更新文件打开列表
+
     if(!is_file(path)) {
         throw FileNotFoundError(path);
     }

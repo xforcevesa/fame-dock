@@ -22,6 +22,7 @@ RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle) {
     rid_.slot_no = -1;
     next();
 }
+
 /**
  * @brief 找到文件中下一个存放了记录的位置
  */
