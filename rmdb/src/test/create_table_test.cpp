@@ -1,10 +1,21 @@
+#include "defs.h"
 #include "errors.h"
-#include "record/rm_scan.h"
+// #include "parser/yacc.tab.h"
+//  #include "parser/yacc.tab.h"
 #include <ostream>
 #include <unistd.h>
+#include <vector>
 #define private public
 #include "common/config.h"
 #include "index/ix_manager.h"
+#include "optimizer/plan.h"
+#include "optimizer/planner.h"
+#include "parser/ast.h"
+#include "record/rm_defs.h"
+// #include "parser/yacc.tab.h"
+#include "record/rm_scan.h"
+#include "system/sm_meta.h"
+
 #include "record/rm_file_handle.h"
 #include "record/rm_manager.h"
 #include "storage/buffer_pool_manager.h"
@@ -134,11 +145,14 @@ public:
 public:
   void SetUp() override {
     ::testing::Test::SetUp();
-    if (disk_manager_->is_dir(TEST_DB_NAME)) {
+    disk_manager_ = std::make_unique<DiskManager>();
+    if (!disk_manager_->is_dir(TEST_DB_NAME)) {
       disk_manager_->create_dir(TEST_DB_NAME);
     }
     assert(disk_manager_->is_dir(TEST_DB_NAME));
     if (chdir(TEST_DB_NAME.c_str()) < 0) {
+      printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
+
       throw UnixError();
     }
     if (disk_manager_->is_file(TEST_FILE_NAME)) {
@@ -151,15 +165,19 @@ public:
     assert(fd != -1);
   }
   void TearDown() override {
+    // sm_manager_->drop_table(TEST_TABLE_NAME, nullptr);
+
     disk_manager_->close_file(fd);
     if (chdir("..") < 0) {
+      printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
+
       throw UnixError();
     }
     assert(disk_manager_->is_dir(TEST_DB_NAME));
   };
 };
-TEST_F(CreateTableTest, SampleTest) {
-  constexpr int buffer_pool_size = 10;
+TEST_F(CreateTableTest, SimpleTest) {
+  // constexpr int buffer_pool_size = 10;
   auto disk_manager_ = CreateTableTest::disk_manager_.get();
   auto buffer_pool_manager_ =
       std::make_unique<BufferPoolManager>(10, disk_manager_);
@@ -176,4 +194,38 @@ TEST_F(CreateTableTest, SampleTest) {
   // 清除文件夹之后，直接用sm_manager_调用create_db就可以
   sm_manager_->create_db(TEST_DB_NAME);
   EXPECT_EQ(sm_manager_->is_dir(TEST_DB_NAME), true);
+  std::vector<ColDef> col_defs;
+  col_defs.push_back(ColDef{"id1", TYPE_INT, sizeof(int)});
+  // string的实现是一个字符数组
+  col_defs.push_back(ColDef{"name", TYPE_STRING, 5 * sizeof(char)});
+  sm_manager_->create_table(TEST_TABLE_NAME, col_defs, nullptr);
+  ASSERT_NE(sm_manager_->db_.tabs_.count(TEST_TABLE_NAME), 0);
+  EXPECT_EQ(sm_manager_->db_.tabs_[TEST_TABLE_NAME].cols.size(), 2);
+  // sm_manager_->show_tables(nullptr);
+}
+TEST_F(CreateTableTest, DROP_TEST) {
+  auto disk_manager_ = CreateTableTest::disk_manager_.get();
+  auto buffer_pool_manager_ =
+      std::make_unique<BufferPoolManager>(10, disk_manager_);
+  auto rm_manager_ =
+      std::make_unique<RmManager>(disk_manager_, buffer_pool_manager_.get());
+  auto ix_manager_ =
+      std::make_unique<IxManager>(disk_manager_, buffer_pool_manager_.get());
+  sm_manager_ =
+      std::make_unique<SmManager>(disk_manager_, buffer_pool_manager_.get(),
+                                  rm_manager_.get(), ix_manager_.get());
+  if (disk_manager_->is_dir(TEST_DB_NAME)) {
+    disk_manager_->destroy_dir(TEST_DB_NAME);
+  }
+  // 手动删掉
+  sm_manager_->db_.tabs_.erase(TEST_TABLE_NAME);
+  std::vector<ColDef> col_defs;
+  col_defs.push_back(ColDef{"id", TYPE_FLOAT, sizeof(float)});
+  col_defs.push_back(ColDef{"name", TYPE_STRING, 7 * sizeof(char)});
+  col_defs.push_back(ColDef{"age", TYPE_INT, sizeof(int)});
+  sm_manager_->create_table(TEST_TABLE_NAME, col_defs, nullptr);
+  ASSERT_NE(sm_manager_->db_.tabs_[TEST_TABLE_NAME].cols.size(), 0);
+  EXPECT_EQ(sm_manager_->db_.tabs_[TEST_TABLE_NAME].cols[0].name, "id");
+  sm_manager_->drop_table(TEST_TABLE_NAME, nullptr);
+  EXPECT_EQ(sm_manager_->db_.tabs_.count(TEST_TABLE_NAME), 0);
 }

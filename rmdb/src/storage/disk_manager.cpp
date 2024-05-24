@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 #include <cstdio>
 #include <exception>
 #include <fcntl.h>
+#include <filesystem>
 #include <stdexcept>
 #include <string.h>   // for memset
 #include <sys/stat.h> // for stat
@@ -108,12 +109,35 @@ void DiskManager::create_dir(const std::string &path) {
   }
 }
 
+namespace fs = std::filesystem;
 void DiskManager::destroy_dir(const std::string &path) {
-  if (rmdir(path.c_str()) != 0) {
-    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
-
-    throw UnixError();
+  // if (rmdir(path.c_str()) != 0) {
+  //   printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+  //
+  //   throw UnixError();
+  // }
+  // 上面的实现是有bug的，rmdir只能删除空目录
+  // 用c++ filesystem库
+  fs::path dir(path);
+  if (!fs::exists(dir)) {
+    std::cerr << "Directory does not exist: " << dir << std::endl;
+    return;
   }
+
+  if (!fs::is_directory(dir)) {
+    std::cerr << "Path is not a directory: " << dir << std::endl;
+    return;
+  }
+
+  for (const auto &entry : fs::directory_iterator(dir)) {
+    if (fs::is_directory(entry.path())) {
+      destroy_dir(entry.path());
+
+    } else {
+      fs::remove(entry.path());
+    }
+  }
+  fs::remove(dir);
 }
 
 /**

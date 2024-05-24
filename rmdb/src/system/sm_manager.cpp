@@ -45,14 +45,18 @@ bool SmManager::is_dir(const std::string &db_name) {
  */
 void SmManager::create_db(const std::string &db_name) {
   if (is_dir(db_name)) {
+    printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
     throw DatabaseExistsError(db_name);
   }
   // 为数据库创建一个子目录
-  std::string cmd = "mkdir " + db_name;
-  if (system(cmd.c_str()) < 0) { // 创建一个名为db_name的目录
+  if (mkdir(db_name.c_str(), S_IRWXU) < 0) { // 创建一个名为db_name的目录
+    printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw UnixError();
   }
   if (chdir(db_name.c_str()) < 0) { // 进入名为db_name的目录
+    printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw UnixError();
   }
   // 创建系统目录
@@ -72,6 +76,8 @@ void SmManager::create_db(const std::string &db_name) {
 
   // 回到根目录
   if (chdir("..") < 0) {
+    printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw UnixError();
   }
 }
@@ -82,10 +88,14 @@ void SmManager::create_db(const std::string &db_name) {
  */
 void SmManager::drop_db(const std::string &db_name) {
   if (!is_dir(db_name)) {
+    printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw DatabaseNotFoundError(db_name);
   }
-  std::string cmd = "rm -r " + db_name;
-  if (system(cmd.c_str()) < 0) {
+  // std::string cmd = "rm -r " + db_name;
+  if (rmdir(db_name.c_str()) < 0) {
+    printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw UnixError();
   }
 }
@@ -100,7 +110,9 @@ void SmManager::open_db(const std::string &db_name) {
     // 进入路径
     auto &&chdir_result = chdir(db_name.c_str());
     if (chdir_result < 0)
-      throw UnixError();
+      printf("Throw error at file: %s, line: %d\n", __FILE__, __LINE__);
+
+    throw UnixError();
 
     std::ifstream ifs(DB_META_NAME);
     // Db重载了>>
