@@ -101,16 +101,17 @@ bool DiskManager::is_dir(const std::string &path) {
 }
 
 void DiskManager::create_dir(const std::string &path) {
-  // Create a subdirectory
-  std::string cmd = "mkdir " + path;
-  if (system(cmd.c_str()) < 0) { // 创建一个名为path的目录
+  if (mkdir(path.c_str(), S_IRWXU) != 0) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw UnixError();
   }
 }
 
 void DiskManager::destroy_dir(const std::string &path) {
-  std::string cmd = "rm -r " + path;
-  if (system(cmd.c_str()) < 0) {
+  if (remove(path.c_str()) != 0) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw UnixError();
   }
 }
@@ -144,6 +145,8 @@ void DiskManager::create_file(const std::string &path) {
       throw UnixError();
     close(fd);
   } catch (std::exception &e) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
     std::cout << e.what() << '\n';
   }
 }
@@ -166,9 +169,13 @@ void DiskManager::destroy_file(const std::string &path) {
     }
     auto &&unlink_result = unlink(path.c_str());
     if (unlink_result != 0) {
+      printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
       throw UnixError();
     }
   } catch (std::exception &e) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
     std::cout << e.what();
   }
 }
@@ -182,23 +189,24 @@ int DiskManager::open_file(const std::string &path) {
   // Todo:
   // 调用open()函数，使用O_RDWR模式
   // 注意不能重复打开相同文件，并且需要更新文件打开列表
-  // try {
-  if (!is_file(path)) {
-    throw FileNotFoundError(path);
+  try {
+    if (!is_file(path)) {
+      throw FileNotFoundError(path);
+    }
+    // 已经打开的不能重复打开
+    if (path2fd_.count(path)) {
+      throw FileNotClosedError(path);
+    }
+    int fd = open(path.c_str(), O_RDWR);
+    path2fd_[path] = fd;
+    fd2path_[fd] = path;
+    return fd;
+  } catch (std::exception &e) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
+    std::cout << e.what();
+    throw std::runtime_error("Error in DiskManager::open_file.");
   }
-  // 已经打开的不能重复打开
-  if (path2fd_.count(path)) {
-    throw FileNotClosedError(path);
-  }
-  int fd = open(path.c_str(), O_RDWR);
-  path2fd_[path] = fd;
-  fd2path_[fd] = path;
-  return fd;
-  // } catch (std::exception &e) {
-  //
-  //   std::cout << e.what();
-  //   throw std::runtime_error("Error in DiskManager::open_file.");
-  // }
 }
 
 /**
@@ -217,6 +225,8 @@ void DiskManager::close_file(int fd) {
     path2fd_.erase(fd2path_[fd]);
     fd2path_.erase(fd);
   } catch (std::exception &e) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
     std::cout << e.what();
   }
 }
@@ -239,6 +249,8 @@ int DiskManager::get_file_size(const std::string &file_name) {
  */
 std::string DiskManager::get_file_name(int fd) {
   if (!fd2path_.count(fd)) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw FileNotOpenError(fd);
   }
   return fd2path_[fd];
@@ -264,22 +276,28 @@ int DiskManager::get_file_fd(const std::string &file_name) {
  * @param {int} offset 读取的内容在文件中的位置
  */
 int DiskManager::read_log(char *log_data, int size, int offset) {
-  // read log file from the previous end
-  if (log_fd_ == -1) {
-    log_fd_ = open_file(LOG_FILE_NAME);
-  }
-  int file_size = get_file_size(LOG_FILE_NAME);
-  if (offset > file_size) {
-    return -1;
-  }
+  try {
+    // read log file from the previous end
+    if (log_fd_ == -1) {
+      log_fd_ = open_file(LOG_FILE_NAME);
+    }
+    int file_size = get_file_size(LOG_FILE_NAME);
+    if (offset > file_size) {
+      return -1;
+    }
 
-  size = std::min(size, file_size - offset);
-  if (size == 0)
-    return 0;
-  lseek(log_fd_, offset, SEEK_SET);
-  ssize_t bytes_read = read(log_fd_, log_data, size);
-  assert(bytes_read == size);
-  return bytes_read;
+    size = std::min(size, file_size - offset);
+    if (size == 0)
+      return 0;
+    lseek(log_fd_, offset, SEEK_SET);
+    ssize_t bytes_read = read(log_fd_, log_data, size);
+    assert(bytes_read == size);
+    return bytes_read;
+  } catch (std::exception &e) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+    std::cout << e.what() << '\n';
+    throw UnixError();
+  }
 }
 
 /**
@@ -296,6 +314,8 @@ void DiskManager::write_log(char *log_data, int size) {
   lseek(log_fd_, 0, SEEK_END);
   ssize_t bytes_write = write(log_fd_, log_data, size);
   if (bytes_write != size) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+
     throw UnixError();
   }
 }
