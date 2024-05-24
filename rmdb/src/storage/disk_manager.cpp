@@ -109,7 +109,7 @@ void DiskManager::create_dir(const std::string &path) {
 }
 
 void DiskManager::destroy_dir(const std::string &path) {
-  if (remove(path.c_str()) != 0) {
+  if (rmdir(path.c_str()) != 0) {
     printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
 
     throw UnixError();
