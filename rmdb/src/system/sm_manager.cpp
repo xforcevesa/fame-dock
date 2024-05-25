@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 #include <algorithm>
 #include <exception>
 #include <iostream>
+#include <optional>
 #include <sys/stat.h>
 #include <tuple>
 #include <unistd.h>
@@ -22,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "common/config.h"
+#include "common/context.h"
 #include "errors.h"
 #include "index/ix.h"
 #include "index/ix_index_handle.h"
@@ -248,7 +250,34 @@ void SmManager::create_table(const std::string &tab_name,
 
   flush_meta();
 }
-
+/** @description: 添加列
+ * @ @param {string&} tab_name 表的名称
+ * @ @param {vector<ColDef>} col_defs 表的字段和类型
+ */
+std::optional<int>
+SmManager::add_table_cols(const std::string &tab_name,
+                          const std::vector<ColDef> &col_defs,
+                          Context *context) {
+  try {
+    if (!db_.is_table(tab_name)) {
+      throw TableNotFoundError(tab_name);
+    }
+    // 获取所有cols的总长度
+    int curr_offset = db_.tabs_[tab_name].cols.back().offset;
+    auto &tab = db_.tabs_[tab_name];
+    for (auto &col_def : col_defs) {
+      ColMeta col{tab_name,    col_def.name, col_def.type,
+                  col_def.len, curr_offset,  false};
+      curr_offset += col_def.len;
+      tab.cols.emplace_back(col);
+    }
+    return std::make_optional(1);
+  } catch (std::exception &e) {
+    printf("Error in file: %s, line: %d\n", __FILE__, __LINE__);
+    std::cout << e.what();
+    return std::make_optional(0);
+  }
+}
 /**
  * @description: 删除表
  * @param {string&} tab_name 表的名称

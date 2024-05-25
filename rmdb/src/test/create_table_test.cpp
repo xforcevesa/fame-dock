@@ -2,6 +2,8 @@
 #include "errors.h"
 // #include "parser/yacc.tab.h"
 //  #include "parser/yacc.tab.h"
+//   #include "parser/yacc.tab.h"
+#include <optional>
 #include <ostream>
 #include <unistd.h>
 #include <vector>
@@ -228,4 +230,64 @@ TEST_F(CreateTableTest, DROP_TEST) {
   EXPECT_EQ(sm_manager_->db_.tabs_[TEST_TABLE_NAME].cols[0].name, "id");
   sm_manager_->drop_table(TEST_TABLE_NAME, nullptr);
   EXPECT_EQ(sm_manager_->db_.tabs_.count(TEST_TABLE_NAME), 0);
+}
+TEST_F(CreateTableTest, INDEX_TEST) {
+  auto disk_manager_ = CreateTableTest::disk_manager_.get();
+  auto buffer_pool_manager_ =
+      std::make_unique<BufferPoolManager>(10, disk_manager_);
+  auto rm_manager_ =
+      std::make_unique<RmManager>(disk_manager_, buffer_pool_manager_.get());
+  auto ix_manager_ =
+      std::make_unique<IxManager>(disk_manager_, buffer_pool_manager_.get());
+  sm_manager_ =
+      std::make_unique<SmManager>(disk_manager_, buffer_pool_manager_.get(),
+                                  rm_manager_.get(), ix_manager_.get());
+  if (disk_manager_->is_dir(TEST_DB_NAME)) {
+    disk_manager_->destroy_dir(TEST_DB_NAME);
+  }
+  sm_manager_->db_.tabs_.erase(TEST_TABLE_NAME);
+  // 测试create index, drop index
+  std::vector<ColDef> col_defs;
+  col_defs.push_back(ColDef{"id1", TYPE_FLOAT, sizeof(float)});
+  col_defs.push_back(ColDef{"name", TYPE_STRING, sizeof(char) * 7});
+  col_defs.push_back(ColDef{"avaerage", TYPE_INT, sizeof(int)});
+  sm_manager_->create_table(TEST_TABLE_NAME, col_defs, nullptr);
+  // 验证插入是否成功
+  EXPECT_EQ(sm_manager_->db_.tabs_[TEST_TABLE_NAME].cols.size(), 3);
+  std::vector<std::string> col_names;
+  col_names.push_back("id1");
+  col_names.push_back("name");
+  sm_manager_->create_index(TEST_TABLE_NAME, col_names, nullptr);
+  ASSERT_EQ(sm_manager_->ix_manager_->exists(TEST_TABLE_NAME, col_names), true);
+  sm_manager_->drop_index(TEST_TABLE_NAME, col_names, nullptr);
+  ASSERT_NE(sm_manager_->ix_manager_->exists(TEST_TABLE_NAME, col_names), true);
+}
+TEST_F(CreateTableTest, ADD_COL_TEST) {
+  auto disk_manager_ = CreateTableTest::disk_manager_.get();
+  auto buffer_pool_manager_ =
+      std::make_unique<BufferPoolManager>(10, disk_manager_);
+  auto rm_manager_ =
+      std::make_unique<RmManager>(disk_manager_, buffer_pool_manager_.get());
+  auto ix_manager_ =
+      std::make_unique<IxManager>(disk_manager_, buffer_pool_manager_.get());
+  sm_manager_ =
+      std::make_unique<SmManager>(disk_manager_, buffer_pool_manager_.get(),
+                                  rm_manager_.get(), ix_manager_.get());
+  if (disk_manager_->is_dir(TEST_DB_NAME)) {
+    disk_manager_->destroy_dir(TEST_DB_NAME);
+  }
+  sm_manager_->db_.tabs_.erase(TEST_TABLE_NAME);
+  // 测试create index, drop index
+  std::vector<ColDef> col_defs;
+  col_defs.push_back(ColDef{"id1", TYPE_FLOAT, sizeof(float)});
+  col_defs.push_back(ColDef{"name", TYPE_STRING, sizeof(char) * 7});
+  col_defs.push_back(ColDef{"avaerage", TYPE_INT, sizeof(int)});
+  sm_manager_->create_table(TEST_TABLE_NAME, col_defs, nullptr);
+  EXPECT_EQ(sm_manager_->db_.tabs_[TEST_TABLE_NAME].cols.size(), 3);
+  col_defs.clear();
+  col_defs.push_back(ColDef{"new_id", TYPE_INT, sizeof(int)});
+  col_defs.push_back(ColDef{"name2", TYPE_STRING, 7 * sizeof(char)});
+  ASSERT_NE(sm_manager_->add_table_cols(TEST_TABLE_NAME, col_defs, nullptr),
+            std::make_optional<int>(0));
+  EXPECT_EQ(sm_manager_->db_.tabs_[TEST_TABLE_NAME].cols.size(), 5);
 }
