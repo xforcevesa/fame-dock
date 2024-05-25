@@ -10,10 +10,11 @@ See the Mulan PSL v2 for more details. */
 
 #include <atomic>
 #include <netinet/in.h>
+#include <cstdio>
 #include <readline/history.h>
 #include <readline/readline.h>
-#include <setjmp.h>
-#include <signal.h>
+#include <csetjmp>
+#include <csignal>
 #include <unistd.h>
 
 #include "analyze/analyze.h"
@@ -27,7 +28,7 @@ See the Mulan PSL v2 for more details. */
 #define SOCK_PORT 8765
 #define MAX_CONN_LIMIT 8
 
-using std::make_unique;
+//using std::make_unique;
 
 static bool should_exit = false;
 
@@ -48,7 +49,7 @@ auto txn_manager =
 auto planner = std::make_unique<Planner>(sm_manager.get());
 auto optimizer = std::make_unique<Optimizer>(sm_manager.get(), planner.get());
 auto ql_manager =
-    make_unique<QlManager>(sm_manager.get(), txn_manager.get(), planner.get());
+    std::make_unique<QlManager>(sm_manager.get(), txn_manager.get(), planner.get());
 auto log_manager = std::make_unique<LogManager>(disk_manager.get());
 auto recovery = std::make_unique<RecoveryManager>(
     disk_manager.get(), buffer_pool_manager.get(), sm_manager.get());
@@ -78,7 +79,7 @@ void SetTransaction(txn_id_t *txn_id, Context *context) {
 }
 
 void *client_handler(void *sock_fd) {
-  int fd = *((int *)sock_fd);
+  int fd = *((int *) sock_fd);
   pthread_mutex_unlock(sockfd_mutex);
 
   int i_recvBytes;
@@ -204,14 +205,14 @@ void *client_handler(void *sock_fd) {
 
 void start_server() {
   // init mutex
-  buffer_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-  sockfd_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+  buffer_mutex = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
+  sockfd_mutex = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
   pthread_mutex_init(buffer_mutex, nullptr);
   pthread_mutex_init(sockfd_mutex, nullptr);
 
   int sockfd_server;
   int fd_temp;
-  struct sockaddr_in s_addr_in {};
+  struct sockaddr_in s_addr_in{};
 
   // 初始化连接
   sockfd_server = socket(AF_INET, SOCK_STREAM, 0); // ipv4,TCP
@@ -225,7 +226,7 @@ void start_server() {
   s_addr_in.sin_addr.s_addr = htonl(INADDR_ANY);
   s_addr_in.sin_port = htons(SOCK_PORT);
   fd_temp =
-      bind(sockfd_server, (struct sockaddr *)(&s_addr_in), sizeof(s_addr_in));
+      bind(sockfd_server, (struct sockaddr *) (&s_addr_in), sizeof(s_addr_in));
   if (fd_temp == -1) {
     std::cout << "Bind error!" << std::endl;
     exit(1);
@@ -240,7 +241,7 @@ void start_server() {
   while (!should_exit) {
     std::cout << "Waiting for new connection..." << std::endl;
     pthread_t thread_id;
-    struct sockaddr_in s_addr_client {};
+    struct sockaddr_in s_addr_client{};
     int client_length = sizeof(s_addr_client);
 
     if (setjmp(jmpbuf)) {
@@ -250,8 +251,8 @@ void start_server() {
 
     // Block here. Until server accepts a new connection.
     pthread_mutex_lock(sockfd_mutex);
-    int sockfd = accept(sockfd_server, (struct sockaddr *)(&s_addr_client),
-                        (socklen_t *)(&client_length));
+    int sockfd = accept(sockfd_server, (struct sockaddr *) (&s_addr_client),
+                        (socklen_t *) (&client_length));
     if (sockfd == -1) {
       std::cout << "Accept error!" << std::endl;
       continue; // ignore current socket ,continue while loop.
@@ -259,7 +260,7 @@ void start_server() {
 
     // 和客户端建立连接，并开启一个线程负责处理客户端请求
     if (pthread_create(&thread_id, nullptr, &client_handler,
-                       (void *)(&sockfd)) != 0) {
+                       (void *) (&sockfd)) != 0) {
       std::cout << "Create thread fail!" << std::endl;
       break; // break while loop
     }
